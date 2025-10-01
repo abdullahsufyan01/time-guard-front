@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Download, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Download, CreditCard as Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { exportToCSV } from '@/lib/exportUtils';
