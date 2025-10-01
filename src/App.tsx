@@ -11,7 +11,18 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/auth/Login';
 import Users from './pages/Users';
+import UserForm from './pages/users/UserForm';
 import Attendance from './pages/Attendance';
+import AttendanceEdit from './pages/attendance/AttendanceEdit';
+import CompanySettings from './pages/settings/CompanySettings';
+import GeneralSettings from './pages/settings/GeneralSettings';
+import PayrollSettings from './pages/settings/PayrollSettings';
+import GeolocationSettings from './pages/settings/GeolocationSettings';
+import Billing from './pages/Billing';
+import Notifications from './pages/Notifications';
+import Reports from './pages/Reports';
+import Timesheets from './pages/Timesheets';
+import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -47,6 +58,26 @@ const App = () => {
                 }
               />
               <Route
+                path="/users/new"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <UserForm />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/users/:id/edit"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <UserForm />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/attendance"
                 element={
                   <ProtectedRoute>
@@ -57,14 +88,21 @@ const App = () => {
                 }
               />
               <Route
+                path="/attendance/:id/edit"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <AttendanceEdit />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/companies"
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <div className="text-center py-12">
-                        <h1 className="text-2xl font-bold mb-2">Company Settings</h1>
-                        <p className="text-muted-foreground">Coming soon...</p>
-                      </div>
+                      <CompanySettings />
                     </AppLayout>
                   </ProtectedRoute>
                 }
@@ -74,10 +112,37 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <div className="text-center py-12">
-                        <h1 className="text-2xl font-bold mb-2">General Settings</h1>
-                        <p className="text-muted-foreground">Coming soon...</p>
-                      </div>
+                      <GeneralSettings />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/payroll"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <PayrollSettings />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/geolocation"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <GeolocationSettings />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/billing"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Billing />
                     </AppLayout>
                   </ProtectedRoute>
                 }
@@ -87,10 +152,7 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <div className="text-center py-12">
-                        <h1 className="text-2xl font-bold mb-2">Notifications</h1>
-                        <p className="text-muted-foreground">Coming soon...</p>
-                      </div>
+                      <Notifications />
                     </AppLayout>
                   </ProtectedRoute>
                 }
@@ -100,10 +162,27 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <div className="text-center py-12">
-                        <h1 className="text-2xl font-bold mb-2">Reports</h1>
-                        <p className="text-muted-foreground">Coming soon...</p>
-                      </div>
+                      <Reports />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/timesheets"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Timesheets />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Profile />
                     </AppLayout>
                   </ProtectedRoute>
                 }

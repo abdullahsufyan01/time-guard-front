@@ -7,6 +7,8 @@ import {
   Bell,
   FileText,
   LogOut,
+  CreditCard,
+  User,
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
@@ -30,7 +32,9 @@ const navigationItems = [
   { title: 'Company', url: '/companies', icon: Building2 },
   { title: 'Settings', url: '/settings/general', icon: Settings },
   { title: 'Notifications', url: '/notifications', icon: Bell },
-  { title: 'Reports', url: '/reports', icon: FileText },
+  { title: 'Timesheets', url: '/timesheets', icon: FileText },
+  { title: 'Billing', url: '/billing', icon: CreditCard },
+  { title: 'Profile', url: '/profile', icon: User },
 ];
 
 export function AppSidebar() {

@@ -17,9 +17,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Download, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export default function Users() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { users, loading } = useSelector((state: RootState) => state.users);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -80,7 +82,7 @@ export default function Users() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button>
+          <Button onClick={() => navigate('/users/new')}>
             <Plus className="h-4 w-4 mr-2" />
             Add User
           </Button>
@@ -147,7 +149,11 @@ export default function Users() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => navigate(`/users/${user.id}/edit`)}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button

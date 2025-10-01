@@ -21,12 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, Download, FileDown } from 'lucide-react';
+import { Calendar, Download, FileDown, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 export default function Attendance() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { records, loading, filters } = useSelector((state: RootState) => state.attendance);
   const { users } = useSelector((state: RootState) => state.users);
 
@@ -147,12 +149,13 @@ export default function Attendance() {
                     <TableHead>Duration (hrs)</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Location</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {records.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No attendance records found
                       </TableCell>
                     </TableRow>
@@ -173,6 +176,15 @@ export default function Attendance() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {record.locationIn.label}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/attendance/${record.id}/edit`)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
