@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Download, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { exportToCSV } from '@/lib/exportUtils';
 
 export default function Users() {
   const dispatch = useDispatch();
@@ -70,6 +71,19 @@ export default function Users() {
       .includes(searchTerm.toLowerCase())
   );
 
+  const handleExport = () => {
+    const exportData = filteredUsers.map((user) => ({
+      Name: `${user.firstName} ${user.lastName}`,
+      Email: user.email,
+      Role: user.role,
+      'Kiosk Number': user.kioskNumber,
+      Branch: user.branch,
+      Status: user.active ? 'Active' : 'Inactive',
+    }));
+    exportToCSV(exportData, `users-export-${new Date().toISOString().split('T')[0]}`);
+    toast.success('Users exported successfully');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -78,9 +92,9 @@ export default function Users() {
           <p className="text-muted-foreground">Manage employee accounts and permissions</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
-            Export
+            Export CSV
           </Button>
           <Button onClick={() => navigate('/users/new')}>
             <Plus className="h-4 w-4 mr-2" />

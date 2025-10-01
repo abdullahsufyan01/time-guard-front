@@ -81,6 +81,31 @@ const mockDb = {
       status: 'Successful',
     },
   ],
+  geofences: [
+    {
+      id: 'geo_1',
+      name: 'Office A Geofence',
+      latitude: 31.5204,
+      longitude: 74.3587,
+      radius: 200,
+      active: true,
+    },
+  ],
+  payrollSettings: {
+    weekStartDay: 'Monday',
+    payPeriodEnd: 'Last day of month',
+    autoClockOut: true,
+    autoClockOutTime: '22:00',
+    timesheetApprovalRequired: true,
+  },
+  generalSettings: {
+    logoUrl: '/logo.png',
+    primaryColor: '#0ea5a4',
+    language: 'en',
+    timeFormat: '24',
+    dateFormat: 'DD/MM/YYYY',
+    lengthFormat: 'metric',
+  },
 };
 
 export const handlers = [
@@ -237,5 +262,62 @@ export const handlers = [
       amount: 35,
       nextBillingDate: '2025-08-26',
     });
+  }),
+
+  http.post('/api/billing/change-card', () => {
+    return HttpResponse.json({ success: true, message: 'Card updated successfully' });
+  }),
+
+  http.get('/api/geofences', () => {
+    return HttpResponse.json({ data: mockDb.geofences });
+  }),
+
+  http.post('/api/geofences', async ({ request }) => {
+    const body = await request.json();
+    const newGeofence = {
+      id: `geo_${mockDb.geofences.length + 1}`,
+      ...(body as object),
+    };
+    mockDb.geofences.push(newGeofence as any);
+    return HttpResponse.json(newGeofence, { status: 201 });
+  }),
+
+  http.put('/api/geofences/:id', async ({ params, request }) => {
+    const body = await request.json();
+    const index = mockDb.geofences.findIndex((g: any) => g.id === params.id);
+    if (index !== -1) {
+      mockDb.geofences[index] = { ...mockDb.geofences[index], ...(body as object) };
+      return HttpResponse.json(mockDb.geofences[index]);
+    }
+    return HttpResponse.json({ error: 'Geofence not found' }, { status: 404 });
+  }),
+
+  http.delete('/api/geofences/:id', ({ params }) => {
+    const index = mockDb.geofences.findIndex((g: any) => g.id === params.id);
+    if (index !== -1) {
+      mockDb.geofences.splice(index, 1);
+      return new HttpResponse(null, { status: 204 });
+    }
+    return HttpResponse.json({ error: 'Geofence not found' }, { status: 404 });
+  }),
+
+  http.get('/api/settings/payroll', () => {
+    return HttpResponse.json(mockDb.payrollSettings);
+  }),
+
+  http.put('/api/settings/payroll', async ({ request }) => {
+    const body = await request.json();
+    mockDb.payrollSettings = { ...mockDb.payrollSettings, ...(body as object) };
+    return HttpResponse.json(mockDb.payrollSettings);
+  }),
+
+  http.get('/api/settings/general', () => {
+    return HttpResponse.json(mockDb.generalSettings);
+  }),
+
+  http.put('/api/settings/general', async ({ request }) => {
+    const body = await request.json();
+    mockDb.generalSettings = { ...mockDb.generalSettings, ...(body as object) };
+    return HttpResponse.json(mockDb.generalSettings);
   }),
 ];

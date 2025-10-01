@@ -24,6 +24,7 @@ const userSchema = Yup.object({
   role: Yup.string().oneOf(['employee', 'manager', 'admin']).required(),
   kioskNumber: Yup.string().required('Kiosk number is required'),
   branch: Yup.string().required('Branch is required'),
+  managerId: Yup.string().nullable(),
   active: Yup.boolean(),
 });
 
@@ -33,14 +34,25 @@ export default function UserForm() {
   const [loading, setLoading] = useState(false);
   const [initialData, setInitialData] = useState<any>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>('');
+  const [allUsers, setAllUsers] = useState<any[]>([]);
 
   const isEditMode = !!id;
 
   useEffect(() => {
+    fetchUsers();
     if (isEditMode) {
       fetchUser();
     }
   }, [id]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await apiClient.get('/users');
+      setAllUsers(response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  };
 
   const fetchUser = async () => {
     try {
@@ -119,6 +131,7 @@ export default function UserForm() {
                 role: 'employee',
                 kioskNumber: '',
                 branch: '',
+                managerId: '',
                 active: true,
                 avatarUrl: '',
               }
@@ -241,6 +254,28 @@ export default function UserForm() {
                     {errors.branch && touched.branch && (
                       <p className="text-sm text-destructive">{String(errors.branch)}</p>
                     )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="managerId">Manager (Optional)</Label>
+                    <Select
+                      value={values.managerId || ''}
+                      onValueChange={(value) => setFieldValue('managerId', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select manager" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No Manager</SelectItem>
+                        {allUsers
+                          .filter((u) => (u.role === 'manager' || u.role === 'admin') && u.id !== id)
+                          .map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.firstName} {user.lastName}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

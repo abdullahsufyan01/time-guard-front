@@ -25,6 +25,7 @@ import { Calendar, Download, FileDown, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { exportToCSV, exportToPDF } from '@/lib/exportUtils';
 
 export default function Attendance() {
   const dispatch = useDispatch();
@@ -95,6 +96,35 @@ export default function Attendance() {
     return user ? `${user.firstName} ${user.lastName}` : 'Unknown';
   };
 
+  const handleExportCSV = () => {
+    const exportData = records.map((record) => ({
+      Employee: getUserName(record.userId),
+      Date: format(new Date(record.date), 'MMM dd, yyyy'),
+      'Clock In': record.clockIn,
+      'Clock Out': record.clockOut,
+      'Duration (hrs)': record.durationHours.toFixed(2),
+      Status: record.status.replace('_', ' '),
+      Location: record.locationIn.label,
+    }));
+    exportToCSV(exportData, `attendance-export-${new Date().toISOString().split('T')[0]}`);
+    toast.success('Attendance exported to CSV successfully');
+  };
+
+  const handleExportPDF = () => {
+    const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Duration (hrs)', 'Status', 'Location'];
+    const data = records.map((record) => [
+      getUserName(record.userId),
+      format(new Date(record.date), 'MMM dd, yyyy'),
+      record.clockIn,
+      record.clockOut,
+      record.durationHours.toFixed(2),
+      record.status.replace('_', ' '),
+      record.locationIn.label,
+    ]);
+    exportToPDF(headers, data, `attendance-export-${new Date().toISOString().split('T')[0]}`, 'Attendance Report');
+    toast.success('Attendance exported to PDF successfully');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -103,11 +133,11 @@ export default function Attendance() {
           <p className="text-muted-foreground">Track and manage employee attendance records</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportCSV}>
             <FileDown className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportPDF}>
             <Download className="h-4 w-4 mr-2" />
             Export PDF
           </Button>

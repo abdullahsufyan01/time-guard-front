@@ -1,4 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store';
+import { apiClient } from '@/lib/apiClient';
+import { exportToCSV, exportToPDF } from '@/lib/exportUtils';
+import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -16,9 +21,89 @@ export default function Reports() {
   const [reportType, setReportType] = useState('attendance');
   const [period, setPeriod] = useState('this_month');
   const [format, setFormat] = useState('csv');
+  const { records } = useSelector((state: RootState) => state.attendance);
+  const { users } = useSelector((state: RootState) => state.users);
 
-  const handleGenerateReport = () => {
-    toast.success(`Generating ${reportType} report in ${format.toUpperCase()} format...`);
+  const getDateRange = (preset: string) => {
+    const today = new Date();
+    let from = format(today, 'yyyy-MM-dd');
+    let to = format(today, 'yyyy-MM-dd');
+
+    switch (preset) {
+      case 'today':
+        break;
+      case 'this_week':
+        from = format(startOfWeek(today), 'yyyy-MM-dd');
+        to = format(endOfWeek(today), 'yyyy-MM-dd');
+        break;
+      case 'this_month':
+        from = format(startOfMonth(today), 'yyyy-MM-dd');
+        to = format(endOfMonth(today), 'yyyy-MM-dd');
+        break;
+      case 'last_month':
+        const lastMonth = subDays(startOfMonth(today), 1);
+        from = format(startOfMonth(lastMonth), 'yyyy-MM-dd');
+        to = format(endOfMonth(lastMonth), 'yyyy-MM-dd');
+        break;
+      case 'this_quarter':
+        from = format(startOfQuarter(today), 'yyyy-MM-dd');
+        to = format(endOfQuarter(today), 'yyyy-MM-dd');
+        break;
+      case 'this_year':
+        from = format(startOfYear(today), 'yyyy-MM-dd');
+        to = format(endOfYear(today), 'yyyy-MM-dd');
+        break;
+    }
+
+    return { from, to };
+  };
+
+  const getUserName = (userId: string) => {
+    const user = users.find((u) => u.id === userId);
+    return user ? `${user.firstName} ${user.lastName}` : 'Unknown';
+  };
+
+  const handleGenerateReport = async () => {
+    try {
+      const { from, to } = getDateRange(period);
+      const response = await apiClient.get(`/attendance?from=${from}&to=${to}`);
+      const attendanceData = response.data || [];
+
+      if (attendanceData.length === 0) {
+        toast.error('No data available for the selected period');
+        return;
+      }
+
+      if (format === 'csv') {
+        const exportData = attendanceData.map((record: any) => ({
+          Employee: getUserName(record.userId),
+          Date: format(new Date(record.date), 'MMM dd, yyyy'),
+          'Clock In': record.clockIn,
+          'Clock Out': record.clockOut,
+          'Duration (hrs)': record.durationHours.toFixed(2),
+          Status: record.status.replace('_', ' '),
+          Location: record.locationIn?.label || 'N/A',
+        }));
+        exportToCSV(exportData, `${reportType}-report-${new Date().toISOString().split('T')[0]}`);
+        toast.success('Report exported to CSV successfully');
+      } else if (format === 'pdf') {
+        const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Duration (hrs)', 'Status', 'Location'];
+        const data = attendanceData.map((record: any) => [
+          getUserName(record.userId),
+          format(new Date(record.date), 'MMM dd, yyyy'),
+          record.clockIn,
+          record.clockOut,
+          record.durationHours.toFixed(2),
+          record.status.replace('_', ' '),
+          record.locationIn?.label || 'N/A',
+        ]);
+        exportToPDF(headers, data, `${reportType}-report-${new Date().toISOString().split('T')[0]}`, `${reportType} Report`);
+        toast.success('Report exported to PDF successfully');
+      }
+    } catch (error) {
+      toast.error('Failed to generate report');
+      console.error('Error generating report:', error);
+    }
   };
 
   const reportTemplates = [
