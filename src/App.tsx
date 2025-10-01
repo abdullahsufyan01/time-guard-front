@@ -16,15 +16,6 @@ import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
 
-// Initialize MSW
-if (import.meta.env.DEV) {
-  import('./mocks/browser').then(({ worker }) => {
-    worker.start({
-      onUnhandledRequest: 'bypass',
-    });
-  });
-}
-
 const App = () => {
   return (
     <Provider store={store}>
