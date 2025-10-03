@@ -3,6 +3,8 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 export interface Attendance {
   id: string;
   userId: string;
+  companyId: string;
+  branchId?: string;
   date: string;
   clockIn: string;
   clockOut: string;
@@ -18,7 +20,11 @@ export interface Attendance {
     label: string;
   };
   notes?: string;
-  status: 'present' | 'absent' | 'late' | 'on_leave';
+  status: 'pending' | 'approved' | 'rejected' | 'present' | 'absent' | 'late' | 'on_leave';
+  editedBy?: string;
+  approvedBy?: string;
+  reason?: string;
+  isLocked?: boolean;
 }
 
 interface AttendanceState {

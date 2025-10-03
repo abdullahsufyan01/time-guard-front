@@ -4,7 +4,9 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'employee';
+  role: 'super_admin' | 'company_admin' | 'manager' | 'employee';
+  companyId?: string;
+  branchId?: string;
 }
 
 interface AuthState {

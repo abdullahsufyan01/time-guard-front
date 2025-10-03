@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Download, CreditCard as Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Download, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { exportToCSV } from '@/lib/exportUtils';
@@ -77,7 +77,7 @@ export default function Users() {
       Email: user.email,
       Role: user.role,
       'Kiosk Number': user.kioskNumber,
-      Branch: user.branch,
+      Branch: user.branchId || 'N/A',
       Status: user.active ? 'Active' : 'Inactive',
     }));
     exportToCSV(exportData, `users-export-${new Date().toISOString().split('T')[0]}`);
@@ -155,7 +155,7 @@ export default function Users() {
                           </Badge>
                         </TableCell>
                         <TableCell>{user.kioskNumber}</TableCell>
-                        <TableCell>{user.branch}</TableCell>
+                        <TableCell>{user.branchId || 'N/A'}</TableCell>
                         <TableCell>
                           <Badge variant={user.active ? 'default' : 'secondary'}>
                             {user.active ? 'Active' : 'Inactive'}

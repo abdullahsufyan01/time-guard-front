@@ -5,12 +5,15 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
-  role: 'employee' | 'manager' | 'admin';
+  role: 'super_admin' | 'company_admin' | 'manager' | 'employee';
   kioskNumber: string;
   active: boolean;
   avatarUrl?: string;
-  branch: string;
+  companyId: string;
+  branchId?: string;
+  department?: string;
   managerId?: string;
+  startDate?: string;
 }
 
 interface UsersState {

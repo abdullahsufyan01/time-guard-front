@@ -20,7 +20,7 @@ import { FileText, Download, FileSpreadsheet } from 'lucide-react';
 export default function Reports() {
   const [reportType, setReportType] = useState('attendance');
   const [period, setPeriod] = useState('this_month');
-  const [format, setFormat] = useState('csv');
+  const [exportFormat, setExportFormat] = useState('csv');
   const { records } = useSelector((state: RootState) => state.attendance);
   const { users } = useSelector((state: RootState) => state.users);
 
@@ -74,7 +74,7 @@ export default function Reports() {
         return;
       }
 
-      if (format === 'csv') {
+      if (exportFormat === 'csv') {
         const exportData = attendanceData.map((record: any) => ({
           Employee: getUserName(record.userId),
           Date: format(new Date(record.date), 'MMM dd, yyyy'),
@@ -86,7 +86,7 @@ export default function Reports() {
         }));
         exportToCSV(exportData, `${reportType}-report-${new Date().toISOString().split('T')[0]}`);
         toast.success('Report exported to CSV successfully');
-      } else if (format === 'pdf') {
+      } else if (exportFormat === 'pdf') {
         const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Duration (hrs)', 'Status', 'Location'];
         const data = attendanceData.map((record: any) => [
           getUserName(record.userId),
@@ -189,7 +189,7 @@ export default function Reports() {
 
               <div className="space-y-2">
                 <Label>Export Format</Label>
-                <Select value={format} onValueChange={setFormat}>
+                <Select value={exportFormat} onValueChange={setExportFormat}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
