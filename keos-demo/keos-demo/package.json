@@ -1,5 +1,8 @@
 {
   "name": "keos-demo",
   "version": "0.1.0",
-  "private": true
+  "private": true,
+  "scripts": {
+    "build:dev": "vite build --mode development"
+  }
 }
