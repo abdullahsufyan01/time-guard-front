@@ -1026,6 +1026,13 @@ function UserManagement({ users, buildings, loadAll }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Validate that bewohner and verwalter have buildings assigned
+      if ((formData.rolle === 'bewohner' || formData.rolle === 'verwalter') && 
+          (!formData.gebaeude || formData.gebaeude.length === 0)) {
+        alert('Bewohner und Verwalter müssen mindestens einem Gebäude zugeordnet werden.');
+        return;
+      }
+      
       if (editUser) {
         await updateData('users', editUser.id, formData);
       } else {
@@ -1177,7 +1184,9 @@ function UserManagement({ users, buildings, loadAll }) {
           />
 
           <div className="mb-4">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Gebäude</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Gebäude {(formData.rolle === 'bewohner' || formData.rolle === 'verwalter') && <span className="text-red-600">*</span>}
+            </label>
             <Select
               isMulti
               classNamePrefix="react-select"
@@ -1186,6 +1195,11 @@ function UserManagement({ users, buildings, loadAll }) {
               onChange={(selected) => setFormData({ ...formData, gebaeude: (selected || []).map(s => s.value) })}
               placeholder="Gebäude auswählen..."
             />
+            {(formData.rolle === 'bewohner' || formData.rolle === 'verwalter') && (
+              <p className="text-xs text-slate-500 mt-1">
+                {formData.rolle === 'bewohner' ? 'Bewohner' : 'Verwalter'} müssen mindestens einem Gebäude zugeordnet werden.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end space-x-3 mt-6">
@@ -1211,7 +1225,7 @@ function UserManagement({ users, buildings, loadAll }) {
 }
 
 // Building Management Component
-function BuildingManagement({ buildings, users, loadAll, role = 'admin' }) {
+function BuildingManagement({ buildings, users, loadAll, role = 'admin', currentUser }) {
   const [showModal, setShowModal] = useState(false);
   const [editBuilding, setEditBuilding] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -1223,6 +1237,26 @@ function BuildingManagement({ buildings, users, loadAll, role = 'admin' }) {
     verwalter: [],
     beschreibung: ''
   });
+
+  // Filter buildings based on user role
+  const getFilteredBuildings = () => {
+    switch (role) {
+      case 'admin':
+        return buildings;
+      case 'verwalter':
+      case 'bewohner':
+        const currentUserData = users.find(u => u.email === currentUser?.email);
+        const userBuildings = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : (currentUserData?.gebaeude ? [currentUserData.gebaeude] : []);
+        return buildings.filter(b =>
+          b.verwalter === currentUser?.email ||
+          (userBuildings.length > 0 && userBuildings.includes(b.name))
+        );
+      default:
+        return [];
+    }
+  };
+
+  const filteredBuildings = getFilteredBuildings();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1300,7 +1334,7 @@ function BuildingManagement({ buildings, users, loadAll, role = 'admin' }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {buildings.map((building) => (
+        {filteredBuildings.map((building) => (
           <div key={building.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -1479,7 +1513,14 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
         );
         return tasks.filter(t => myBuildings.some(b => (b.name && b.name === t.gebaeude) || (b.id && b.id === t.gebaeudeId)));
       case 'bewohner':
-        return tasks.filter(t => t.betrifft === currentUser?.email);
+        // Show tasks created by resident OR assigned to them
+        const residentUserData = users.find(u => u.email === currentUser?.email);
+        const residentBuildings = Array.isArray(residentUserData?.gebaeude) ? residentUserData.gebaeude : (residentUserData?.gebaeude ? [residentUserData.gebaeude] : []);
+        return tasks.filter(t => 
+          t.ersteller === currentUser?.email || 
+          t.betrifft === currentUser?.email ||
+          (residentBuildings.length > 0 && residentBuildings.includes(t.gebaeude))
+        );
       default:
         return [];
     }
@@ -1526,6 +1567,13 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
         erstellt: editTask ? editTask.erstellt : new Date().toISOString(),
         ersteller: editTask ? editTask.ersteller : currentUser?.email
       };
+
+      // For residents creating tasks, set default values
+      if (role === 'bewohner' && !editTask) {
+        taskData.status = 'offen';
+        taskData.prioritaet = taskData.prioritaet || 'normal';
+        taskData.betrifft = currentUser?.email;
+      }
 
       if (editTask) {
         await updateData('tasks', editTask.id, taskData);
@@ -1618,13 +1666,13 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-slate-900">Aufgabenverwaltung</h2>
-        {(role === 'admin' || role === 'verwalter') && (
+        {(role === 'admin' || role === 'verwalter' || role === 'bewohner') && (
           <button
             onClick={handleNewTask}
             className="bg-[#15505d] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#0f3d47] transition-colors flex items-center space-x-2"
           >
             <Plus size={16} />
-            <span>Aufgabe erstellen</span>
+            <span>{role === 'bewohner' ? 'Neue Aufgabe melden' : 'Aufgabe erstellen'}</span>
           </button>
         )}
       </div>
@@ -1644,7 +1692,7 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
                 <StatusBadge status={task.status} />
               </div>
               <div className="flex items-center space-x-2 ml-2">
-                {(role === 'admin' || (role === 'verwalter' && buildings.some(b => (b.verwalter === currentUser?.email || (users.find(u => u.email === currentUser?.email)?.gebaeude || []).includes(b.name)) && b.name === task.gebaeude)) || (role === 'service' && task.zugewiesen === currentUser?.email)) && (
+                {(role === 'admin' || (role === 'verwalter' && buildings.some(b => (b.verwalter === currentUser?.email || (users.find(u => u.email === currentUser?.email)?.gebaeude || []).includes(b.name)) && b.name === task.gebaeude)) || (role === 'service' && task.zugewiesen === currentUser?.email) || (role === 'bewohner' && task.ersteller === currentUser?.email)) && (
                   <button
                     onClick={() => openStatusModal(task)}
                     className="p-2 text-slate-600 hover:text-[#15505d] hover:bg-slate-100 rounded-lg transition-colors"
@@ -1653,7 +1701,7 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
                     <Clock size={16} />
                   </button>
                 )}
-                {(role === 'admin' || (role === 'service' && task.zugewiesen === currentUser?.email) || (role === 'verwalter' && buildings.some(b => (b.verwalter === currentUser?.email || (users.find(u => u.email === currentUser?.email)?.gebaeude || []).includes(b.name)) && b.name === task.gebaeude))) && (
+                {(role === 'admin' || (role === 'service' && task.zugewiesen === currentUser?.email) || (role === 'verwalter' && buildings.some(b => (b.verwalter === currentUser?.email || (users.find(u => u.email === currentUser?.email)?.gebaeude || []).includes(b.name)) && b.name === task.gebaeude)) || (role === 'bewohner' && task.ersteller === currentUser?.email)) && (
                   <div className="flex items-center space-x-1">
                     <button
                       onClick={() => handleEdit(task)}
@@ -1661,7 +1709,7 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
                     >
                       <Edit size={16} />
                     </button>
-                    {role === 'admin' && (
+                    {(role === 'admin' || (role === 'bewohner' && task.ersteller === currentUser?.email)) && (
                       <button
                         onClick={() => handleDelete(task.id)}
                         className="p-2 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -1698,16 +1746,27 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
         ))}
       </div>
 
-      {(role === 'admin' || role === 'verwalter') && (
-        <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editTask ? "Aufgabe bearbeiten" : "Aufgabe erstellen"}>
+      {(role === 'admin' || role === 'verwalter' || role === 'bewohner') && (
+        <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editTask ? "Aufgabe bearbeiten" : (role === 'bewohner' ? "Neue Aufgabe melden" : "Aufgabe erstellen")}>
           <Formik enableReinitialize initialValues={formData} validationSchema={validationSchema} onSubmit={handleSubmit}>
-            {({ values, setFieldValue }) => (
+            {({ values, setFieldValue }) => {
+              // Get user's accessible buildings
+              const currentUserData = users.find(u => u.email === currentUser?.email);
+              const userBuildings = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : (currentUserData?.gebaeude ? [currentUserData.gebaeude] : []);
+              
+              const accessibleBuildings = role === 'admin' 
+                ? buildings 
+                : role === 'verwalter'
+                  ? buildings.filter(b => b.verwalter === currentUser?.email || userBuildings.includes(b.name))
+                  : buildings.filter(b => userBuildings.includes(b.name));
+
+              return (
               <Form className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 md:pr-2">
                 <FormInput
                   label="Titel"
                   value={values.titel}
                   onChange={e => setFieldValue('titel', e.target.value)}
-                  placeholder="Kurze Beschreibung der Aufgabe"
+                  placeholder={role === 'bewohner' ? "z.B. Defekte Glühbirne im Flur" : "Kurze Beschreibung der Aufgabe"}
                   required
                 />
 
@@ -1716,7 +1775,7 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
                   <textarea
                     value={values.beschreibung}
                     onChange={e => setFieldValue('beschreibung', e.target.value)}
-                    placeholder="Detaillierte Beschreibung der Aufgabe"
+                    placeholder={role === 'bewohner' ? "Beschreiben Sie das Problem..." : "Detaillierte Beschreibung der Aufgabe"}
                     className="w-full px-4 py-3 border border-slate-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#15505d] focus:border-transparent transition-all duration-200"
                     rows="3"
                     required
@@ -1728,61 +1787,67 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
                   label="Gebäude"
                   value={values.gebaeude}
                   onChange={e => setFieldValue('gebaeude', e.target.value)}
-                  options={buildings.map(b => ({ value: b.name, label: b.name }))}
+                  options={accessibleBuildings.map(b => ({ value: b.name, label: b.name }))}
                   required
                 />
                 <div className="text-red-600 text-xs mt-1"><ErrorMessage name="gebaeude" /></div>
 
-                <FormSelect
-                  label="Zugewiesen an"
-                  value={values.zugewiesen}
-                  onChange={e => setFieldValue('zugewiesen', e.target.value)}
-                  options={users.filter(u => u.rolle === 'service').map(u => ({ value: u.email, label: u.name || u.email }))}
-                />
-
-                <FormSelect
-                  label="Status"
-                  value={values.status}
-                  onChange={e => setFieldValue('status', e.target.value)}
-                  options={[
-                    { value: 'offen', label: 'Offen' },
-                    { value: 'wird bearbeitet', label: 'In Bearbeitung' },
-                    { value: 'erledigt', label: 'Erledigt' }
-                  ]}
-                  required
-                />
-
-                <FormSelect
-                  label="Priorität"
-                  value={values.prioritaet}
-                  onChange={e => setFieldValue('prioritaet', e.target.value)}
-                  options={[
-                    { value: 'niedrig', label: 'Niedrig' },
-                    { value: 'normal', label: 'Normal' },
-                    { value: 'hoch', label: 'Hoch' },
-                    { value: 'kritisch', label: 'Kritisch' }
-                  ]}
-                  required
-                />
-
-                <FormInput
-                  label="Kategorie"
-                  value={values.kategorie}
-                  onChange={e => setFieldValue('kategorie', e.target.value)}
-                  placeholder="z.B. Reparatur, Wartung, Reinigung"
-                />
-
-                <div className="mb-2">
-                  <label className="inline-flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={values.isRecurring || false}
-                      onChange={(e) => setFieldValue('isRecurring', e.target.checked)}
-                      className="rounded border-slate-300 text-[#15505d] focus:ring-[#15505d]"
+                {role !== 'bewohner' && (
+                  <>
+                    <FormSelect
+                      label="Zugewiesen an"
+                      value={values.zugewiesen}
+                      onChange={e => setFieldValue('zugewiesen', e.target.value)}
+                      options={users.filter(u => u.rolle === 'service').map(u => ({ value: u.email, label: u.name || u.email }))}
                     />
-                    <span className="text-sm font-semibold text-slate-700">Wiederkehrende Aufgabe</span>
-                  </label>
-                </div>
+
+                    <FormSelect
+                      label="Status"
+                      value={values.status}
+                      onChange={e => setFieldValue('status', e.target.value)}
+                      options={[
+                        { value: 'offen', label: 'Offen' },
+                        { value: 'wird bearbeitet', label: 'In Bearbeitung' },
+                        { value: 'erledigt', label: 'Erledigt' }
+                      ]}
+                      required
+                    />
+
+                    <FormSelect
+                      label="Priorität"
+                      value={values.prioritaet}
+                      onChange={e => setFieldValue('prioritaet', e.target.value)}
+                      options={[
+                        { value: 'niedrig', label: 'Niedrig' },
+                        { value: 'normal', label: 'Normal' },
+                        { value: 'hoch', label: 'Hoch' },
+                        { value: 'kritisch', label: 'Kritisch' }
+                      ]}
+                      required
+                    />
+
+                    <FormInput
+                      label="Kategorie"
+                      value={values.kategorie}
+                      onChange={e => setFieldValue('kategorie', e.target.value)}
+                      placeholder="z.B. Reparatur, Wartung, Reinigung"
+                    />
+                  </>
+                )}
+
+                {role !== 'bewohner' && (
+                  <div className="mb-2">
+                    <label className="inline-flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={values.isRecurring || false}
+                        onChange={(e) => setFieldValue('isRecurring', e.target.checked)}
+                        className="rounded border-slate-300 text-[#15505d] focus:ring-[#15505d]"
+                      />
+                      <span className="text-sm font-semibold text-slate-700">Wiederkehrende Aufgabe</span>
+                    </label>
+                  </div>
+                )}
 
                 {values.isRecurring && (
                   <div className="space-y-4">
@@ -1835,11 +1900,12 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
                     className="px-4 py-2 bg-[#15505d] text-white rounded-lg font-semibold hover:bg-[#0f3d47] transition-colors flex items-center space-x-2"
                   >
                     <Save size={16} />
-                    <span>Speichern</span>
+                    <span>{editTask ? 'Speichern' : (role === 'bewohner' ? 'Aufgabe melden' : 'Erstellen')}</span>
                   </button>
                 </div>
               </Form>
-            )}
+              );
+            }}
           </Formik>
         </Modal>
       )}
@@ -2863,7 +2929,7 @@ function AdminPanel({ users, buildings, tasks, meldungen, nachrichten, bestellun
         return <UserManagement users={users} buildings={buildings} loadAll={loadAll} />;
 
       case 'buildings':
-        return <BuildingManagement buildings={buildings} users={users} loadAll={loadAll} />;
+        return <BuildingManagement buildings={buildings} users={users} loadAll={loadAll} role="admin" currentUser={auth.currentUser} />;
 
       case 'tasks':
         return <TaskManagement tasks={tasks} buildings={buildings} users={users} loadAll={loadAll} currentUser={auth.currentUser} role="admin" />;
@@ -3501,7 +3567,7 @@ function VerwalterDashboard({ user, tasks, meldungen, buildings, users, nachrich
         );
 
       case 'buildings':
-        return <BuildingManagement buildings={myBuildings} users={users} loadAll={loadAll} role="verwalter" />;
+        return <BuildingManagement buildings={myBuildings} users={users} loadAll={loadAll} role="verwalter" currentUser={user} />;
 
       case 'tasks':
         return <TaskManagement tasks={myTasks} buildings={myBuildings} users={users} loadAll={loadAll} currentUser={user} role="verwalter" />;
@@ -3556,7 +3622,15 @@ function BewohnerDashboard({ user, tasks, meldungen, buildings, users, loadAll }
   const [scannedBuilding, setScannedBuilding] = useState(null);
 
   const myReports = meldungen.filter(m => m.ersteller === user?.email);
-  const myTasks = tasks.filter(t => t.betrifft === user?.email);
+  
+  // Get resident's accessible buildings and filter tasks
+  const currentUserData = users.find(u => u.email === user?.email);
+  const residentBuildings = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : (currentUserData?.gebaeude ? [currentUserData.gebaeude] : []);
+  const myTasks = tasks.filter(t => 
+    t.ersteller === user?.email || 
+    t.betrifft === user?.email ||
+    (residentBuildings.length > 0 && residentBuildings.includes(t.gebaeude))
+  );
 
   const handleQRScan = (qrData) => {
     setScannedBuilding(qrData);
