@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { setPasswordForUser, createUser, deleteUser, getUserByEmail, admin } = require('./firebase-admin');
+const { setPasswordForUser, createUser, createUserWithFirestore, deleteUser, getUserByEmail, checkEmailExists, admin } = require('./firebase-admin');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -90,6 +90,42 @@ app.post('/api/users/set-password', async (req, res) => {
     res.json(result);
   } else {
     res.status(500).json(result);
+  }
+});
+
+// Check if email exists
+app.get('/api/users/check-email/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const exists = await checkEmailExists(email);
+    res.json({ exists });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create user with Firestore integration
+app.post('/api/users/create-with-firestore', async (req, res) => {
+  const { email, password, displayName, username, rolle, gebaeude } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich' });
+  }
+  
+  const result = await createUserWithFirestore(email, password, displayName, {
+    username,
+    rolle,
+    gebaeude
+  });
+  
+  if (result.success) {
+    res.json(result);
+  } else {
+    if (result.code === 'email-exists') {
+      res.status(409).json(result);
+    } else {
+      res.status(500).json(result);
+    }
   }
 });
 

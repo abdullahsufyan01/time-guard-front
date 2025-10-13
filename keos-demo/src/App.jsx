@@ -1020,34 +1020,77 @@ function UserManagement({ users, buildings, loadAll }) {
     username: '',
     rolle: '',
     gebaeude: [],
-    name: ''
+    name: '',
+    password: ''
   });
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setIsCreating(true);
+    
     try {
-      // Validate that bewohner and verwalter have buildings assigned
+      // Validate that bewohner and verwalter have buildings assigned (as IDs now)
       if ((formData.rolle === 'bewohner' || formData.rolle === 'verwalter') && 
           (!formData.gebaeude || formData.gebaeude.length === 0)) {
         alert('Bewohner und Verwalter müssen mindestens einem Gebäude zugeordnet werden.');
+        setIsCreating(false);
         return;
       }
       
       if (editUser) {
-        await updateData('users', editUser.id, formData);
-      } else {
-        await addData('users', {
-          ...formData,
-          erstellt: new Date().toISOString()
+        // Update existing user in Firestore only
+        await updateData('users', editUser.id, {
+          username: formData.username,
+          rolle: formData.rolle,
+          gebaeude: formData.gebaeude,
+          name: formData.name
         });
+      } else {
+        // Create new user via backend API (creates in Auth + Firestore)
+        if (!formData.password || formData.password.length < 6) {
+          alert('Passwort muss mindestens 6 Zeichen lang sein.');
+          setIsCreating(false);
+          return;
+        }
+
+        const response = await fetch('http://localhost:3001/api/users/create-with-firestore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            displayName: formData.name,
+            username: formData.username,
+            rolle: formData.rolle,
+            gebaeude: formData.gebaeude
+          })
+        });
+
+        const result = await response.json();
+        
+        if (!result.success) {
+          if (result.code === 'email-exists') {
+            setError('Diese E-Mail-Adresse wird bereits verwendet.');
+          } else {
+            setError(result.error || 'Fehler beim Erstellen des Benutzers');
+          }
+          setIsCreating(false);
+          return;
+        }
       }
+      
       setShowModal(false);
       setEditUser(null);
-      setFormData({ email: '', username: '', rolle: '', gebaeude: [], name: '' });
+      setFormData({ email: '', username: '', rolle: '', gebaeude: [], name: '', password: '' });
       await loadAll();
     } catch (error) {
       console.error('Fehler beim Speichern:', error);
+      setError('Netzwerkfehler. Bitte stellen Sie sicher, dass der Server läuft.');
     }
+    setIsCreating(false);
   };
 
   const resetForm = () => {
@@ -1056,9 +1099,11 @@ function UserManagement({ users, buildings, loadAll }) {
       username: '',
       rolle: '',
       gebaeude: [],
-      name: ''
+      name: '',
+      password: ''
     });
     setEditUser(null);
+    setError('');
   };
 
   const handleEdit = (user) => {
@@ -1068,7 +1113,8 @@ function UserManagement({ users, buildings, loadAll }) {
       username: user.username || '',
       rolle: user.rolle || '',
       gebaeude: Array.isArray(user.gebaeude) ? user.gebaeude : (user.gebaeude ? [user.gebaeude] : []),
-      name: user.name || ''
+      name: user.name || '',
+      password: '' // Don't show password on edit
     });
     setShowModal(true);
   };
@@ -1079,10 +1125,35 @@ function UserManagement({ users, buildings, loadAll }) {
   };
 
   const handleDelete = async (userId) => {
-    if (window.confirm('Nutzer wirklich löschen?')) {
-      await deleteData('users', userId);
-      await loadAll();
+    if (window.confirm('Nutzer wirklich löschen? Dies löscht auch den Firebase Auth Account.')) {
+      try {
+        const user = users.find(u => u.id === userId);
+        if (user && user.uid) {
+          // Delete from Firebase Auth via backend
+          await fetch(`http://localhost:3001/api/users/${user.uid}`, {
+            method: 'DELETE'
+          });
+        } else {
+          // Just delete from Firestore if no UID
+          await deleteData('users', userId);
+        }
+        await loadAll();
+      } catch (error) {
+        console.error('Fehler beim Löschen:', error);
+        alert('Fehler beim Löschen des Benutzers');
+      }
     }
+  };
+
+  // Helper to display building names from IDs
+  const getBuildingNames = (buildingIds) => {
+    if (!Array.isArray(buildingIds) || buildingIds.length === 0) return '-';
+    return buildingIds
+      .map(id => {
+        const building = buildings.find(b => b.id === id);
+        return building ? building.name : id;
+      })
+      .join(', ');
   };
 
   return (
@@ -1120,7 +1191,7 @@ function UserManagement({ users, buildings, loadAll }) {
                       {user.rolle}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{Array.isArray(user.gebaeude) ? (user.gebaeude.length ? user.gebaeude.join(', ') : '-') : (user.gebaeude || '-')}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{getBuildingNames(user.gebaeude)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
                       <button
@@ -1146,6 +1217,12 @@ function UserManagement({ users, buildings, loadAll }) {
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editUser ? "Nutzer bearbeiten" : "Nutzer hinzufügen"}>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+          
           <FormInput
             label="Name"
             value={formData.name}
@@ -1161,7 +1238,19 @@ function UserManagement({ users, buildings, loadAll }) {
             onChange={e => setFormData({ ...formData, email: e.target.value })}
             placeholder="E-Mail Adresse"
             required
+            disabled={editUser !== null}
           />
+
+          {!editUser && (
+            <FormInput
+              label="Passwort"
+              type="password"
+              value={formData.password}
+              onChange={e => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Mindestens 6 Zeichen"
+              required
+            />
+          )}
 
           <FormInput
             label="Benutzername"
@@ -1190,8 +1279,11 @@ function UserManagement({ users, buildings, loadAll }) {
             <Select
               isMulti
               classNamePrefix="react-select"
-              options={buildings.map(b => ({ value: b.name, label: b.name }))}
-              value={(formData.gebaeude || []).map(v => ({ value: v, label: v }))}
+              options={buildings.map(b => ({ value: b.id, label: b.name }))}
+              value={(formData.gebaeude || []).map(buildingId => {
+                const building = buildings.find(b => b.id === buildingId);
+                return building ? { value: building.id, label: building.name } : { value: buildingId, label: buildingId };
+              })}
               onChange={(selected) => setFormData({ ...formData, gebaeude: (selected || []).map(s => s.value) })}
               placeholder="Gebäude auswählen..."
             />
@@ -1212,10 +1304,11 @@ function UserManagement({ users, buildings, loadAll }) {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#15505d] text-white rounded-lg font-semibold hover:bg-[#0f3d47] transition-colors flex items-center space-x-2"
+              disabled={isCreating}
+              className="px-4 py-2 bg-[#15505d] text-white rounded-lg font-semibold hover:bg-[#0f3d47] transition-colors flex items-center space-x-2 disabled:opacity-50"
             >
               <Save size={16} />
-              <span>Speichern</span>
+              <span>{isCreating ? 'Speichern...' : 'Speichern'}</span>
             </button>
           </div>
         </form>
@@ -1246,11 +1339,8 @@ function BuildingManagement({ buildings, users, loadAll, role = 'admin', current
       case 'verwalter':
       case 'bewohner':
         const currentUserData = users.find(u => u.email === currentUser?.email);
-        const userBuildings = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : (currentUserData?.gebaeude ? [currentUserData.gebaeude] : []);
-        return buildings.filter(b =>
-          b.verwalter === currentUser?.email ||
-          (userBuildings.length > 0 && userBuildings.includes(b.name))
-        );
+        const userBuildingIds = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : [];
+        return buildings.filter(b => userBuildingIds.includes(b.id));
       default:
         return [];
     }
@@ -1506,20 +1596,28 @@ function TaskManagement({ tasks, buildings, users, loadAll, currentUser, role })
         return tasks.filter(t => t.zugewiesen === currentUser?.email);
       case 'verwalter':
         const currentUserData = users.find(u => u.email === currentUser?.email);
-        const userBuildings = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : (currentUserData?.gebaeude ? [currentUserData.gebaeude] : []);
-        const myBuildings = buildings.filter(b =>
-          b.verwalter === currentUser?.email ||
-          (userBuildings.length > 0 && userBuildings.includes(b.name))
-        );
-        return tasks.filter(t => myBuildings.some(b => (b.name && b.name === t.gebaeude) || (b.id && b.id === t.gebaeudeId)));
+        const userBuildingIds = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : [];
+        // Filter by building ID or fallback to building name
+        return tasks.filter(t => {
+          if (t.gebaeudeId && userBuildingIds.includes(t.gebaeudeId)) return true;
+          // Fallback: check if building name matches any of user's buildings
+          return userBuildingIds.some(buildingId => {
+            const building = buildings.find(b => b.id === buildingId);
+            return building && building.name === t.gebaeude;
+          });
+        });
       case 'bewohner':
         // Show tasks created by resident OR assigned to them
         const residentUserData = users.find(u => u.email === currentUser?.email);
-        const residentBuildings = Array.isArray(residentUserData?.gebaeude) ? residentUserData.gebaeude : (residentUserData?.gebaeude ? [residentUserData.gebaeude] : []);
+        const residentBuildingIds = Array.isArray(residentUserData?.gebaeude) ? residentUserData.gebaeude : [];
         return tasks.filter(t => 
           t.ersteller === currentUser?.email || 
           t.betrifft === currentUser?.email ||
-          (residentBuildings.length > 0 && residentBuildings.includes(t.gebaeude))
+          (t.gebaeudeId && residentBuildingIds.includes(t.gebaeudeId)) ||
+          residentBuildingIds.some(buildingId => {
+            const building = buildings.find(b => b.id === buildingId);
+            return building && building.name === t.gebaeude;
+          })
         );
       default:
         return [];
@@ -2119,9 +2217,12 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
     titel: '',
     beschreibung: '',
     gebaeude: '',
+    gebaeudeId: '',
     kategorie: '',
-    prioritaet: 'normal'
+    prioritaet: 'normal',
+    images: []
   });
+  const [isUploading, setIsUploading] = useState(false);
 
   // Filter reports based on user role
   const getFilteredReports = () => {
@@ -2130,12 +2231,14 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
         return meldungen;
       case 'verwalter':
         const currentUserData = users.find(u => u.email === currentUser?.email);
-        const userBuildings = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : (currentUserData?.gebaeude ? [currentUserData.gebaeude] : []);
-        const myBuildings = buildings.filter(b =>
-          b.verwalter === currentUser?.email ||
-          (userBuildings.length > 0 && userBuildings.includes(b.name))
-        );
-        return meldungen.filter(m => myBuildings.some(b => (b.name && b.name === m.gebaeude) || (b.id && b.id === m.buildingId)));
+        const userBuildingIds = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : (currentUserData?.gebaeude ? [currentUserData.gebaeude] : []);
+        return meldungen.filter(m => {
+          // Match by gebaeudeId (new) or fallback to building name
+          return userBuildingIds.includes(m.gebaeudeId) || userBuildingIds.some(buildingId => {
+            const building = buildings.find(b => b.id === buildingId);
+            return building && building.name === m.gebaeude;
+          });
+        });
       case 'bewohner':
         return meldungen.filter(m => m.ersteller === currentUser?.email);
       default:
@@ -2145,11 +2248,42 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
 
   const filteredReports = getFilteredReports();
 
+  const handleImageChange = (newImages) => {
+    setFormData({ ...formData, images: newImages });
+  };
+
+  const uploadImages = async () => {
+    const uploadedUrls = [];
+    for (const imageObj of formData.images) {
+      if (imageObj.file) {
+        const storageRef = ref(storage, `reports/${Date.now()}_${imageObj.file.name}`);
+        await uploadBytes(storageRef, imageObj.file);
+        const url = await getDownloadURL(storageRef);
+        uploadedUrls.push(url);
+      }
+    }
+    return uploadedUrls;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsUploading(true);
+    
     try {
+      // Upload images to Firebase Storage
+      const imageUrls = await uploadImages();
+      
+      // Find selected building to get both ID and name
+      const selectedBuilding = buildings.find(b => b.id === formData.gebaeudeId);
+      
       const reportData = {
-        ...formData,
+        titel: formData.titel,
+        beschreibung: formData.beschreibung,
+        gebaeude: selectedBuilding?.name || formData.gebaeude,
+        gebaeudeId: formData.gebaeudeId,
+        kategorie: formData.kategorie,
+        prioritaet: formData.prioritaet,
+        imageUrls: imageUrls,
         erstellt: editReport ? editReport.erstellt : new Date().toISOString(),
         ersteller: editReport ? editReport.ersteller : currentUser?.email,
         status: editReport ? editReport.status : 'offen'
@@ -2160,13 +2294,16 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
       } else {
         await addData('meldungen', reportData);
       }
+      
       setShowModal(false);
       setEditReport(null);
-      setFormData({ titel: '', beschreibung: '', gebaeude: '', kategorie: '', prioritaet: 'normal' });
+      setFormData({ titel: '', beschreibung: '', gebaeude: '', gebaeudeId: '', kategorie: '', prioritaet: 'normal', images: [] });
       await loadAll();
     } catch (error) {
       console.error('Fehler beim Speichern:', error);
+      alert('Fehler beim Speichern der Meldung');
     }
+    setIsUploading(false);
   };
 
   const handleEdit = (report) => {
@@ -2175,8 +2312,10 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
       titel: report.titel || '',
       beschreibung: report.beschreibung || '',
       gebaeude: report.gebaeude || '',
+      gebaeudeId: report.gebaeudeId || '',
       kategorie: report.kategorie || '',
-      prioritaet: report.prioritaet || 'normal'
+      prioritaet: report.prioritaet || 'normal',
+      images: [] // Don't load existing images for editing
     });
     setShowModal(true);
   };
@@ -2193,12 +2332,40 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
     await loadAll();
   };
 
+  // Helper to get building name from ID
+  const getBuildingName = (gebaeudeId, gebaeudeNameFallback) => {
+    if (gebaeudeId) {
+      const building = buildings.find(b => b.id === gebaeudeId);
+      if (building) return building.name;
+    }
+    return gebaeudeNameFallback || gebaeudeId || 'Unbekannt';
+  };
+
+  // Helper to check if user can edit this report
+  const canEdit = (report) => {
+    if (role === 'admin') return true;
+    if (role === 'bewohner' && report.ersteller === currentUser?.email) return true;
+    if (role === 'verwalter') {
+      const currentUserData = users.find(u => u.email === currentUser?.email);
+      const userBuildingIds = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : [];
+      return userBuildingIds.includes(report.gebaeudeId) || userBuildingIds.some(buildingId => {
+        const building = buildings.find(b => b.id === buildingId);
+        return building && building.name === report.gebaeude;
+      });
+    }
+    return false;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-slate-900">Meldungen</h2>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            setEditReport(null);
+            setFormData({ titel: '', beschreibung: '', gebaeude: '', gebaeudeId: '', kategorie: '', prioritaet: 'normal', images: [] });
+            setShowModal(true);
+          }}
           className="bg-[#15505d] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#0f3d47] transition-colors flex items-center space-x-2"
         >
           <Plus size={16} />
@@ -2214,7 +2381,7 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
                 <h3 className="font-semibold text-slate-900 mb-2">{report.titel}</h3>
                 <StatusBadge status={report.status} />
               </div>
-              {(role === 'admin' || (role === 'bewohner' && report.ersteller === currentUser?.email) || (role === 'verwalter' && buildings.some(b => (b.verwalter === currentUser?.email || (users.find(u => u.email === currentUser?.email)?.gebaeude || []).includes(b.name)) && b.name === report.gebaeude))) && (
+              {canEdit(report) && (
                 <div className="flex items-center space-x-1 ml-2">
                   <button
                     onClick={() => handleEdit(report)}
@@ -2236,10 +2403,24 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
 
             <p className="text-sm text-slate-600 mb-4 line-clamp-2">{report.beschreibung}</p>
 
+            {report.imageUrls && report.imageUrls.length > 0 && (
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                {report.imageUrls.map((url, idx) => (
+                  <img
+                    key={idx}
+                    src={url}
+                    alt={`Meldung Bild ${idx + 1}`}
+                    className="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => window.open(url, '_blank')}
+                  />
+                ))}
+              </div>
+            )}
+
             <div className="space-y-2 text-xs text-slate-500">
               <div className="flex items-center space-x-2">
                 <Building size={12} />
-                <span>{report.gebaeude}</span>
+                <span>{getBuildingName(report.gebaeudeId, report.gebaeude)}</span>
               </div>
               {report.kategorie && (
                 <div className="flex items-center space-x-2">
@@ -2257,7 +2438,7 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
               </div>
             </div>
 
-            {role === 'verwalter' && buildings.some(b => (b.verwalter === currentUser?.email || (users.find(u => u.email === currentUser?.email)?.gebaeude || []).includes(b.name)) && b.name === report.gebaeude) && (
+            {role === 'verwalter' && canEdit(report) && (
               <div className="mt-4 pt-4 border-t border-slate-200">
                 <select
                   value={report.status}
@@ -2300,9 +2481,24 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
 
           <FormSelect
             label="Gebäude"
-            value={formData.gebaeude}
-            onChange={e => setFormData({ ...formData, gebaeude: e.target.value })}
-            options={buildings.map(b => ({ value: b.name, label: b.name }))}
+            value={formData.gebaeudeId}
+            onChange={e => {
+              const building = buildings.find(b => b.id === e.target.value);
+              setFormData({ 
+                ...formData, 
+                gebaeudeId: e.target.value,
+                gebaeude: building?.name || ''
+              });
+            }}
+            options={buildings
+              .filter(b => {
+                // Filter buildings based on user role
+                if (role === 'admin') return true;
+                const currentUserData = users.find(u => u.email === currentUser?.email);
+                const userBuildingIds = Array.isArray(currentUserData?.gebaeude) ? currentUserData.gebaeude : [];
+                return userBuildingIds.includes(b.id);
+              })
+              .map(b => ({ value: b.id, label: b.name }))}
             required
           />
 
@@ -2326,20 +2522,37 @@ function ReportsManagement({ meldungen, buildings, users, loadAll, currentUser, 
             required
           />
 
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Bilder hochladen
+            </label>
+            <ImageUpload
+              images={formData.images}
+              onImagesChange={handleImageChange}
+              maxImages={5}
+              label="Problem-Bilder"
+            />
+            <p className="text-xs text-slate-500 mt-2">
+              Laden Sie Bilder hoch, um das Problem besser zu veranschaulichen (max. 5 Bilder)
+            </p>
+          </div>
+
           <div className="flex justify-end space-x-3 mt-6">
             <button
               type="button"
               onClick={() => setShowModal(false)}
               className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition-colors"
+              disabled={isUploading}
             >
               Abbrechen
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#15505d] text-white rounded-lg font-semibold hover:bg-[#0f3d47] transition-colors flex items-center space-x-2"
+              disabled={isUploading}
+              className="px-4 py-2 bg-[#15505d] text-white rounded-lg font-semibold hover:bg-[#0f3d47] transition-colors flex items-center space-x-2 disabled:opacity-50"
             >
               <Save size={16} />
-              <span>Speichern</span>
+              <span>{isUploading ? 'Wird gespeichert...' : 'Speichern'}</span>
             </button>
           </div>
         </form>
