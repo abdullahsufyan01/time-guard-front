@@ -80,6 +80,12 @@ export async function createUserWithFirestore(email, password, displayName, addi
     };
   } catch (error) {
     console.error('Fehler beim Erstellen des Benutzers:', error);
+    
+    // Handle specific Firebase Auth errors
+    if (error.code === 'auth/email-already-exists') {
+      return { success: false, error: 'Email already exists', code: 'email-exists' };
+    }
+    
     return { success: false, error: error.message };
   }
 }
